@@ -1,0 +1,61 @@
+########################################################################
+## Production AVD Hostpool Deployment: 11-01-2022 -- Bill K
+## Initial Config
+########################################################################
+name: 'AVD-Hostpool-ResourceGroup-EnvSetup_$(SourceBranchName)_$(Date:yyyyMMdd)$(Rev:.r)'
+
+trigger: none
+
+pool:
+  vmImage: windows-2019
+
+variables:
+  ResourceGroupName: ''
+  SubscriptionName: ''
+  subscriptionId: ''
+  devServiceConnection: 'NuanceGTSDev_GTS-CoreServices-CS2-DEV-EUS'
+  prodServiceConnection: 'Nuance_GTS.CS.MGMT.US.PROD'
+  avdHostpoolTemplate: $(System.DefaultWorkingDirectory)/Templates/Prod/avd-HostPool-deploy.json'
+  environemnt: 'AzureDeployment'
+  parameterFilePath: '$(System.DefaultWorkingDirectory)/Parameters/<PATH TO YOUR FILE>'
+  
+stages:
+- stage: Build
+  jobs:
+  - job: Build
+    steps:
+    - task: AzureCLI@2  
+      displayName: 'build bicep artifact' 
+      inputs: 
+        azureSubscription: $(devServiceConnection) 
+        scriptType: 'pscore'  
+        scriptLocation: 'inlineScript'  
+        inlineScript: 'az bicep build --file $(avdHostpoolTemplate)'
+
+    - task: PublishBuildArtifacts@1 
+      displayName: 'Publish artifact in pipeline' 
+      inputs: 
+        PathtoPublish: '$(avdHostpoolTemplate)'
+        ArtifactName: 'finishedTemplate'  
+        publishLocation: 'Container' 
+
+- stage: deploy
+  jobs:
+  - deployment: AVDDeployment
+    displayName: 'Deploy AVD Hostpool resources to Azure Resource Group'
+    environment: $(environemnt)
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - checkout: self
+
+          - task: AzurePowerShell@5
+            displayName: '1 - Create Resource Groups'
+            enabled: true
+            inputs:
+              azureSubscription: $(prodServiceConnection) 
+              ScriptPath: '$(System.DefaultWorkingDirectory)/scripts/Deploy-AVDHostpool-BuildDeployment.ps1'
+              ScriptArguments: '-SubscriptionName $(SubscriptionName) -deploymentTemplate $(avdHostpoolTemplate) -parameterFile $(parameterFilePath) -ResourceGroupName $(ResourceGroupName)'
+              azurePowerShellVersion: LatestVersion
+              pwsh: true
