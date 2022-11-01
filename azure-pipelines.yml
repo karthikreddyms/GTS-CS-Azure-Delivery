@@ -49,9 +49,8 @@ stages:
         deploy:
           steps:
           - checkout: self
-
           - task: AzurePowerShell@5
-            displayName: '1 - Create Resource Groups'
+            displayName: 'Create Resource Groups and deploy AVD HostPools'
             enabled: true
             inputs:
               azureSubscription: $(prodServiceConnection) 
